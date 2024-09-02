@@ -1,0 +1,4 @@
+option('projectdir', type: 'string', value: 'minimal_vsg',
+  description:
+  'If a folder needs to be created somewhere it will have this name.'
+)
