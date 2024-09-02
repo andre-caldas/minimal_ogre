@@ -39,13 +39,14 @@ SDL_AppResult SDL_AppIterate(void* /*appstate*/)
   // SDL_HINT_MAIN_CALLBACK_RATE is not properly working yet.
   // So, we check by hand. Remove this when fixed.
   // Begin.
-  static const auto htz = chrono::duration_cast<time_point_t::duration>(chrono::duration<long int, std::ratio<1,60>>{1});
+  static const auto htz = chrono::duration_cast<time_point_t::duration>(chrono::duration<long int, std::ratio<1,65>>{1});
   static auto last_iteration = chrono::steady_clock::now();
   auto xxx_now = chrono::steady_clock::now();
   if(xxx_now - last_iteration < htz) {
+    std::this_thread::sleep_for(htz);
     return SDL_APP_CONTINUE;
   }
-  last_iteration = xxx_now;
+  last_iteration = chrono::steady_clock::now();
   // End.
 
   if(app->hasTerminated()) {
