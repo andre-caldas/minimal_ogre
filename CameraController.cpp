@@ -7,7 +7,9 @@
 #include <Bites/OgreInput.h>
 #include <Ogre.h>
 
-void CameraController::setTargetSpeed(const Ogre::Vector3& speed)
+using namespace Ogre;
+
+void CameraController::setTargetSpeed(const Vector3& speed)
 {
   from_speed = interpolate(from_speed, target_speed);
   elapsed_time = 0.0;
@@ -15,7 +17,7 @@ void CameraController::setTargetSpeed(const Ogre::Vector3& speed)
 }
 
 
-void CameraController::moveCamera(const Ogre::Vector3& displacement)
+void CameraController::moveCamera(const Vector3& displacement)
 {
   auto app = app_weak.lock();
   if(!app) {
@@ -24,7 +26,7 @@ void CameraController::moveCamera(const Ogre::Vector3& displacement)
   auto node = app->getCameraNode();
   auto pos = node->getPosition() + displacement;
   node->setPosition(std::move(pos));
-//  node->lookAt(Ogre::Vector3::ZERO, Ogre::Node::TransformSpace::TS_WORLD);
+//  node->lookAt(Vector3::ZERO, Node::TransformSpace::TS_WORLD);
 }
 
 void CameraController::update(double dt_sec)
@@ -43,8 +45,8 @@ void CameraController::update(double dt_sec)
   moveCamera(dt_sec * std::move(current_speed));
 }
 
-Ogre::Vector3 CameraController::interpolate(
-    const Ogre::Vector3& from, const Ogre::Vector3& to) const
+Vector3 CameraController::interpolate(
+    const Vector3& from, const Vector3& to) const
 {
   if(elapsed_time > total_time) {
     return to;
@@ -67,6 +69,16 @@ bool CameraController::keyPressed(const OgreBites::KeyboardEvent& evt)
 
 std::cerr << "Event key press (" << evt.keysym.sym << ")\n";
   switch(evt.keysym.sym) {
+  case 'r':
+    {
+      auto app = app_weak.lock();
+      if(!app) {
+        break;
+      }
+      auto node = app->getMeshNode();
+      node->rotate(Vector3{0,1,0}, Radian{.2}, Node::TransformSpace::TS_PARENT);
+    }
+    break;
   case 's':
     setTargetSpeed({0,0,0});
     break;
@@ -88,6 +100,8 @@ std::cerr << "Event key press (" << evt.keysym.sym << ")\n";
   case OgreBites::SDLK_DOWN:
     setTargetSpeed({0,100,0});
     break;
+  default:
+    return false;
   }
   return true;
 }

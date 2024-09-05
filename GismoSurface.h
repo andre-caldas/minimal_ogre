@@ -1,18 +1,19 @@
 #include <memory>
 
-#include <gismo/gsCore/gsGeometry.h>
+#include <gismo/gsNurbs/gsTensorNurbs.h>
 
-// xxxxxxxxxxx. Ogre scene node.
+#include <OgreMesh.h>
+
+using surface_t = gismo::gsTensorNurbs<2, real_t>;
 
 class GismoSurface
 {
 public:
-  GismoSurface(const gismo::gsSurface<float>& surface);
+  GismoSurface(std::shared_ptr<const surface_t> surface)
+    : surface(std::move(surface)) {}
 
-  void getNode();
+  void populateMesh(Ogre::Mesh* mesh);
 
 private:
-//  vsg::ref_ptr<vsg::vec3Array> vertices;
-//  vsg::ref_ptr<vsg::vec3Array> normals;
-//  vsg::ref_ptr<vsg::intArray>  faces;
+  std::shared_ptr<const surface_t> surface;
 };

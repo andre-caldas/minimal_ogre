@@ -2,12 +2,9 @@
 
 #include <string>
 #include <thread>
-#include <future>
 
 #include <Bites/OgreApplicationContextSDL3.h>
 #include <Bites/OgreInput.h>
-
-class SceneManagerFix;
 
 class MinOgreApp
     : public OgreBites::ApplicationContextSDL3
@@ -17,8 +14,6 @@ public:
   using OgreBites::ApplicationContextSDL3::ApplicationContextSDL3;
   ~MinOgreApp();
 
-  int width = 1024;
-  int height = 768;
   std::string title;
 
   void init();
@@ -26,6 +21,7 @@ public:
   bool hasTerminated() const {return terminated;}
 
   Ogre::SceneNode* getCameraNode() const {return cameraNode;}
+  Ogre::SceneNode* getMeshNode() const {return meshNode;}
 
 protected:
   /**
@@ -49,6 +45,7 @@ private:
 
   Ogre::SceneManager* sceneManager = nullptr;
   Ogre::SceneNode* cameraNode = nullptr;
+  Ogre::SceneNode* meshNode = nullptr;
 
   // Exit on ESC key pressed.
   bool keyPressed(const OgreBites::KeyboardEvent& evt);

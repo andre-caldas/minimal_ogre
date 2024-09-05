@@ -5,74 +5,109 @@
 
 #include <gismo/gsCore/gsSurface.h>
 #include <gismo/gsCore/gsFieldCreator.h>
+#include <gismo/gsNurbs/gsNurbsCreator.h>
 
-// Ogre manual object...
+#include <Ogre.h>
 
-GismoSurface::GismoSurface(const gismo::gsSurface<float>& surface)
+using namespace gismo;
+using namespace Ogre;
+
+void GismoSurface::populateMesh(Mesh* mesh)
 {
-#if 0
-  gismo::gsNormalField<float> normal_field{surface};
+  const int entries_per_point = 6;
 
-  const gismo::gsMatrix<float> param = surface.parameterRange();
+  std::vector<float> positions_normals;
+  std::vector<uint16> triangles;
+  Vector3 min_bound = Vector3::ZERO;
+  Vector3 max_bound = Vector3::ZERO;
+
+  gsNormalField<real_t> normal_field{*surface};
+
+  const gsMatrix<real_t> param = surface->parameterRange();
   // TODO: determine number of points. Remove magic number below.
-  gismo::gsGridIterator<double, gismo::CUBE> pIter(param, 200);
-  const gismo::gsMatrix<float> np = pIter.numPointsCwise();
-  const auto nvertex = np[0] * np[1];
-  const auto nfaces = 2 * (np[0]-1) * (np[1]-1);
+  gsGridIterator<real_t, CUBE> pIter(param, 5000);
+  const auto np = pIter.numPointsCwise();
+  const auto npoints = np[0] * np[1];
+  const auto ntriangles = 2 * (np[0]-1) * (np[1]-1);
 
-  vertices  = vsg::vec3Array::create(nvertex);
-  normals = vsg::vec3Array::create(nvertex);
-  faces   = vsg::intArray::create(nfaces);
+  positions_normals.reserve(entries_per_point * npoints);
+  triangles.reserve(2 * 3 * ntriangles);
 
   auto domain_points = pIter.toMatrix();
   // TODO: process in parallel.
-  auto _vertices  = surface.eval(domain_points);
+  auto _positions  = surface->eval(domain_points);
   auto _normals = normal_field.eval(domain_points);
-  assert(_vertices.cols() == _normals.cols()
+  assert(_positions.cols() == npoints
+         && "Wrong number of positions predicted.");
+  assert(_positions.cols() == _normals.cols()
          && "We should have one normal for each vertex.");
-  vertices = vsg::vec3Array::create(_vertices.cols());
-  normals  = vsg::vec3Array::create(_normals.cols());
-  for(int i=0; i < _vertices.cols(); ++i) {
-    auto const& vcol = _vertices.col(i);
-    vertices->set(i, vsg::vec3{vcol[0], vcol[1], vcol[2]});
+  for(int i=0; i < _positions.cols(); ++i) {
+    auto const& pcol = _positions.col(i);
     auto const& ncol = _normals.col(i);
-    normals->set(i, vsg::vec3{ncol[0], ncol[1], ncol[2]});
+
+    Vector3 pos(pcol[0], pcol[1], pcol[2]);
+    Vector3 normal(ncol[0], ncol[1], ncol[2]);
+    normal.normalise();
+
+    // Sets the bounding box.
+    min_bound.makeFloor(pos);
+    max_bound.makeCeil(pos);
+
+    // Sets the positions
+    positions_normals.push_back(pos[0]);
+    positions_normals.push_back(pos[1]);
+    positions_normals.push_back(pos[2]);
+    // Sets the normals
+    positions_normals.push_back(normal[0]);
+    positions_normals.push_back(normal[1]);
+    positions_normals.push_back(normal[2]);
   }
 
-  // TODO: process in parallel.
-  index_t idx_count = 0;
   for(index_t j = 0; j < np[1]-1; ++j) {
     for(index_t i= 0; i < np[0]-1; ++i) {
       const index_t ind1 = j * np[0] + i;
       const index_t ind2 = ind1 + np[0];
-      faces->set(idx_count++, ind1);
-      faces->set(idx_count++, ind1+1);
-      faces->set(idx_count++, ind2+1);
+      triangles.push_back(ind1);
+      triangles.push_back(ind1+1);
+      triangles.push_back(ind2+1);
+      triangles.push_back(ind1);
+      triangles.push_back(ind2+1);
+      triangles.push_back(ind1+1);
 
-      faces->set(idx_count++, ind2+1);
-      faces->set(idx_count++, ind2);
-      faces->set(idx_count++, ind1+1);
+      triangles.push_back(ind2+1);
+      triangles.push_back(ind2);
+      triangles.push_back(ind1);
+      triangles.push_back(ind2+1);
+      triangles.push_back(ind1);
+      triangles.push_back(ind2);
     }
   }
-#endif
-}
 
+  mesh->_setBounds(AxisAlignedBox(min_bound, max_bound));
 
-void GismoSurface::getNode()
-{
-#if 0
-  auto vid = vsg::VertexIndexDraw::create();
+  mesh->createVertexData();
+  mesh->sharedVertexData->vertexCount = entries_per_point;
+  VertexDeclaration* decl = mesh->sharedVertexData->vertexDeclaration;
+  VertexBufferBinding* bind = mesh->sharedVertexData->vertexBufferBinding;
 
-  vsg::DataList arrays;
-  arrays.push_back(vertices);
-  arrays.push_back(normals);
-  vid->assignArrays(arrays);
+  size_t offset = 0;
+  offset += decl->addElement(0, offset, VET_FLOAT3, VES_POSITION).getSize();
+  offset += decl->addElement(0, offset, VET_FLOAT3, VES_NORMAL).getSize();
 
-  vid->assignIndices(faces);
-  vid->indexCount = static_cast<uint32_t>(faces->size());
-  vid->instanceCount = 1; // ???????????
+  auto vbuf = HardwareBufferManager::getSingleton()
+                .createVertexBuffer(offset, positions_normals.size()/entries_per_point, HBU_GPU_ONLY);
+  vbuf->writeData(0, vbuf->getSizeInBytes(), positions_normals.data(), true);
+  bind->setBinding(0, vbuf);
 
-  subgraph = decorateAndCompileIfRequired(info, stateInfo, vid);
-  return subgraph;
-#endif
+  HardwareIndexBufferPtr ibuf =
+    HardwareBufferManager::getSingleton().createIndexBuffer(
+      HardwareIndexBuffer::IT_16BIT, triangles.size(), HBU_GPU_ONLY);
+  ibuf->writeData(0, ibuf->getSizeInBytes(), triangles.data(), true);
+
+  SubMesh* sub = mesh->createSubMesh();
+//  sub->useSharedVertices = true;
+  sub->indexData->indexBuffer = ibuf;
+  sub->indexData->indexStart = 0;
+  sub->indexData->indexCount = triangles.size();
+  mesh->load();
 }

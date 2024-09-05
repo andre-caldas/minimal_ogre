@@ -36,18 +36,19 @@ SDL_AppResult SDL_AppInit(void** /*appstate*/, int /*argc*/, char** /*argv*/)
 
 SDL_AppResult SDL_AppIterate(void* /*appstate*/)
 {
-  // SDL_HINT_MAIN_CALLBACK_RATE is not properly working yet.
+  // SDL_HINT_MAIN_CALLBACK_RATE is not properly working IMO.
   // So, we check by hand. Remove this when fixed.
-  // Begin.
-  static const auto htz = chrono::duration_cast<time_point_t::duration>(chrono::duration<long int, std::ratio<1,65>>{1});
+  // https://discourse.libsdl.org/t/sdl-appiterate-called-too-many-times/53939
+  // === Hack START ===
+  static const auto almost_a_frame = chrono::duration_cast<time_point_t::duration>(chrono::duration<long int, std::ratio<1,65>>{1});
   static auto last_iteration = chrono::steady_clock::now();
-  auto xxx_now = chrono::steady_clock::now();
-  if(xxx_now - last_iteration < htz) {
-    std::this_thread::sleep_for(htz);
+  auto hack_now = chrono::steady_clock::now();
+  if(hack_now - last_iteration < almost_a_frame) {
+    std::this_thread::sleep_for(almost_a_frame);
     return SDL_APP_CONTINUE;
   }
   last_iteration = chrono::steady_clock::now();
-  // End.
+  // === Hack END ===
 
   if(app->hasTerminated()) {
     // TODO: report errors.
