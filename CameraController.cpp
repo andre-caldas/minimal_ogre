@@ -9,25 +9,56 @@
 
 using namespace Ogre;
 
-void CameraController::setTargetSpeed(const Vector3& speed)
+void CameraController::setTargetSpeed(const std::shared_ptr<MinOgreApp>& app)
 {
   from_speed = interpolate(from_speed, target_speed);
   elapsed_time = 0.0;
-  target_speed = speed;
+
+  auto node = app->getCameraNode();
+  target_speed = Vector3::ZERO;
+  if(move_right) target_speed += 10.0 * node->getOrientation().xAxis();
+  if(move_left)  target_speed -= 10.0 * node->getOrientation().xAxis();
+  if(move_up)    target_speed += 10.0 * node->getOrientation().yAxis();
+  if(move_down)  target_speed -= 10.0 * node->getOrientation().yAxis();
 }
 
 
-void CameraController::moveCamera(const Vector3& displacement)
+void CameraController::setRotation(const std::shared_ptr<MinOgreApp>& app)
 {
-  auto app = app_weak.lock();
-  if(!app) {
+  auto node = app->getCameraNode();
+  Vector3 normal{0,0,0};
+  if(rotate_right) normal -= node->getOrientation().zAxis();
+  if(rotate_left)  normal += node->getOrientation().zAxis();
+  if(rotate_up)    normal -= node->getOrientation().xAxis();
+  if(rotate_down)  normal += node->getOrientation().xAxis();
+  if(normal.isZeroLength()) {
+    rotation_rad_second = 0;
     return;
   }
-  auto node = app->getCameraNode();
+  normal.normalise();
+  rotation_normal = std::move(normal); // Thread unsafe.
+  rotation_rad_second = .5;
+}
+
+
+void CameraController::moveObject(const std::shared_ptr<MinOgreApp>& app,
+                                  const Vector3& displacement)
+{
+  auto node = app->getMeshNode();
   auto pos = node->getPosition() + displacement;
   node->setPosition(std::move(pos));
 //  node->lookAt(Vector3::ZERO, Node::TransformSpace::TS_WORLD);
 }
+
+void CameraController::rotateObject(const std::shared_ptr<MinOgreApp>& app, float rad)
+{
+  if(!rotation_rad_second) {
+    return;
+  }
+  auto node = app->getMeshNode();
+  node->rotate(rotation_normal, Radian{rad}, Node::TransformSpace::TS_PARENT);
+}
+
 
 void CameraController::update(double dt_sec)
 {
@@ -41,8 +72,16 @@ void CameraController::update(double dt_sec)
     elapsed_time += dt_sec;
   }
 
+  auto app = app_weak.lock();
+  if(!app) {
+    return;
+  }
+  setTargetSpeed(app);
+  setRotation(app);
+
   auto current_speed = interpolate(from_speed, target_speed);
-  moveCamera(dt_sec * std::move(current_speed));
+  moveObject(app, dt_sec * std::move(current_speed));
+  rotateObject(app, dt_sec * rotation_rad_second);
 }
 
 Vector3 CameraController::interpolate(
@@ -67,50 +106,26 @@ bool CameraController::keyPressed(const OgreBites::KeyboardEvent& evt)
     return false;
   }
 
-std::cerr << "Event key press (" << evt.keysym.sym << ")\n";
-  switch(evt.keysym.sym) {
-  case 'r':
-    {
-      auto app = app_weak.lock();
-      if(!app) {
-        break;
-      }
-      auto node = app->getMeshNode();
-      node->rotate(Vector3{0,1,0}, Radian{.2}, Node::TransformSpace::TS_PARENT);
-    }
-    break;
-  case 's':
-    setTargetSpeed({0,0,0});
-    break;
-  case 'b':
-    setTargetSpeed({0,0,10});
-    break;
-  case 'f':
-    setTargetSpeed({0,0,-10});
-    break;
-  case OgreBites::SDLK_RIGHT:
-    setTargetSpeed({-100,0,0});
-    break;
-  case OgreBites::SDLK_LEFT:
-    setTargetSpeed({100,0,0});
-    break;
-  case OgreBites::SDLK_UP:
-    setTargetSpeed({0,-100,0});
-    break;
-  case OgreBites::SDLK_DOWN:
-    setTargetSpeed({0,100,0});
-    break;
-  default:
-    return false;
-  }
-  return true;
+  return keyPressedOrReleased(evt, true);
 }
 
 bool CameraController::keyReleased(const OgreBites::KeyboardEvent& evt)
 {
-std::cerr << "Event key release (" << evt.keysym.sym << ")\n";
-return false;
+  assert(!evt.repeat); // Released is never repeated. If it was, we should do as in keyPressed.
+  return keyPressedOrReleased(evt, false);
 }
+
+bool CameraController::keyPressedOrReleased(const OgreBites::KeyboardEvent& evt, bool pressed)
+{
+  auto it = char_to_bool.find(evt.keysym.sym);
+  if(it == char_to_bool.end()) {
+    return false;
+  }
+
+  *(it->second) = pressed;
+  return true;
+}
+
 
 bool CameraController::touchMoved(const OgreBites::TouchFingerEvent& evt)
 {

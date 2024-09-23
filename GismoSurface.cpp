@@ -5,7 +5,7 @@
 
 #include <gismo/gsCore/gsSurface.h>
 #include <gismo/gsCore/gsFieldCreator.h>
-#include <gismo/gsNurbs/gsNurbsCreator.h>
+#include <gismo/gsUtils/gsMesh/gsMesh.h>
 
 #include <Ogre.h>
 

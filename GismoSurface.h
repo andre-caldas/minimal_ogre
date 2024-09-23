@@ -1,10 +1,11 @@
 #include <memory>
 
-#include <gismo/gsNurbs/gsTensorNurbs.h>
+#include <gismo/gsHSplines/gsTHBSpline.h>
 
 #include <OgreMesh.h>
 
-using surface_t = gismo::gsTensorNurbs<2, real_t>;
+using surface_t       = gismo::gsTHBSpline<2, real_t>;
+using surface_basis_t = gismo::gsTHBSplineBasis<2, real_t>;
 
 class GismoSurface
 {
